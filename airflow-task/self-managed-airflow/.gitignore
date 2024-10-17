@@ -1,0 +1,33 @@
+# Terraform State files
+*.tfstate
+*.tfstate.*
+
+# Terraform plan files
+*.tfplan
+
+# Crash log files
+crash.log
+
+# Ignore override files as they are usually machine-specific
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform .envrc files (if using direnv)
+.envrc
+.env
+
+# Local .terraform directories
+.terraform/
+.terraform.lock.hcl
+
+# Lockfile used by Terraform for dependency management
+.terraform.lock.hcl
+
+# Sensitive variable files
+*.auto.tfvars
+
+# Exclude personal/private keys
+*.pem
+*.key
