@@ -1,123 +1,236 @@
-# Self-managed Apache Airflow deployment for EKS
-Checkout the [documentation website](https://awslabs.github.io/data-on-eks/docs/blueprints/job-schedulers/self-managed-airflow) to deploy this pattern and run sample tests.
+# Airflow on EKS Deployment Guide
 
-<!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
-## Requirements
+## Research and Solution Choice
 
-| Name | Version |
-|------|---------|
-| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0.0 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.0 |
-| <a name="requirement_helm"></a> [helm](#requirement\_helm) | >= 2.9.0 |
-| <a name="requirement_kubectl"></a> [kubectl](#requirement\_kubectl) | >= 1.14 |
-| <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | >= 2.20.0 |
-| <a name="requirement_random"></a> [random](#requirement\_random) | 3.5.1 |
+After thorough research on the best practices for deploying Airflow on Amazon EKS, I found that the most suitable and robust solution is provided by the AWS Labs Airflow on EKS repository. This solution is widely recognized for its seamless integration with AWS services and Kubernetes, allowing for a highly scalable and manageable Airflow setup.
 
-## Providers
 
-| Name | Version |
-|------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 5.0 |
-| <a name="provider_aws.ecr"></a> [aws.ecr](#provider\_aws.ecr) | >= 5.0 |
-| <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | >= 1.14 |
-| <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | >= 2.20.0 |
-| <a name="provider_random"></a> [random](#provider\_random) | 3.5.1 |
+To test the setup and demonstrate its functionality, I cloned the repository and made the necessary modifications to enable public access. This allows for easy testing of the Airflow web UI and DAG executions in a development environment, while also highlighting the flexibility of the solution. For production, more secure configurations, such as internal load balancers and restricted access through VPC, can be applied as needed.
 
-## Modules
+## Architecture Decisions
+### 1. Executor Choice: Kubernetes Executor
 
-| Name | Source | Version |
-|------|--------|---------|
-| <a name="module_airflow_irsa_scheduler"></a> [airflow\_irsa\_scheduler](#module\_airflow\_irsa\_scheduler) | aws-ia/eks-blueprints-addon/aws | ~> 1.0 |
-| <a name="module_airflow_irsa_webserver"></a> [airflow\_irsa\_webserver](#module\_airflow\_irsa\_webserver) | aws-ia/eks-blueprints-addon/aws | ~> 1.0 |
-| <a name="module_airflow_irsa_worker"></a> [airflow\_irsa\_worker](#module\_airflow\_irsa\_worker) | aws-ia/eks-blueprints-addon/aws | ~> 1.0 |
-| <a name="module_airflow_s3_bucket"></a> [airflow\_s3\_bucket](#module\_airflow\_s3\_bucket) | terraform-aws-modules/s3-bucket/aws | ~> 3.0 |
-| <a name="module_amp_ingest_irsa"></a> [amp\_ingest\_irsa](#module\_amp\_ingest\_irsa) | aws-ia/eks-blueprints-addon/aws | ~> 1.0 |
-| <a name="module_db"></a> [db](#module\_db) | terraform-aws-modules/rds/aws | ~> 5.0 |
-| <a name="module_ebs_csi_driver_irsa"></a> [ebs\_csi\_driver\_irsa](#module\_ebs\_csi\_driver\_irsa) | terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks | ~> 5.34 |
-| <a name="module_eks"></a> [eks](#module\_eks) | terraform-aws-modules/eks/aws | ~> 19.15 |
-| <a name="module_eks_blueprints_addons"></a> [eks\_blueprints\_addons](#module\_eks\_blueprints\_addons) | aws-ia/eks-blueprints-addons/aws | ~> 1.2 |
-| <a name="module_eks_data_addons"></a> [eks\_data\_addons](#module\_eks\_data\_addons) | aws-ia/eks-data-addons/aws | 1.33.0 |
-| <a name="module_fluentbit_s3_bucket"></a> [fluentbit\_s3\_bucket](#module\_fluentbit\_s3\_bucket) | terraform-aws-modules/s3-bucket/aws | ~> 3.0 |
-| <a name="module_security_group"></a> [security\_group](#module\_security\_group) | terraform-aws-modules/security-group/aws | ~> 5.0 |
-| <a name="module_spark_logs_s3_bucket"></a> [spark\_logs\_s3\_bucket](#module\_spark\_logs\_s3\_bucket) | terraform-aws-modules/s3-bucket/aws | ~> 3.0 |
-| <a name="module_spark_team_a_irsa"></a> [spark\_team\_a\_irsa](#module\_spark\_team\_a\_irsa) | aws-ia/eks-blueprints-addon/aws | ~> 1.0 |
-| <a name="module_vpc"></a> [vpc](#module\_vpc) | terraform-aws-modules/vpc/aws | ~> 5.0 |
+We have chosen the Kubernetes Executor for Airflow due to several key advantages that it provides when running on Amazon EKS:
 
-## Resources
+. Dynamic scaling: Each task is executed in a separate pod, allowing for automatic and dynamic scaling of resources. This makes it easy to handle varying workloads efficiently.
 
-| Name | Type |
-|------|------|
-| [aws_efs_file_system.efs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/efs_file_system) | resource |
-| [aws_efs_mount_target.efs_mt](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/efs_mount_target) | resource |
-| [aws_iam_policy.airflow_scheduler](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy) | resource |
-| [aws_iam_policy.airflow_webserver](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy) | resource |
-| [aws_iam_policy.airflow_worker](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy) | resource |
-| [aws_iam_policy.fluentbit](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy) | resource |
-| [aws_iam_policy.grafana](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy) | resource |
-| [aws_iam_policy.spark](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy) | resource |
-| [aws_prometheus_workspace.amp](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/prometheus_workspace) | resource |
-| [aws_s3_object.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_object) | resource |
-| [aws_secretsmanager_secret.airflow_webserver](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
-| [aws_secretsmanager_secret.grafana](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
-| [aws_secretsmanager_secret.postgres](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
-| [aws_secretsmanager_secret_version.airflow_webserver](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
-| [aws_secretsmanager_secret_version.grafana](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
-| [aws_secretsmanager_secret_version.postgres](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
-| [aws_security_group.efs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
-| [kubectl_manifest.airflow_webserver](https://registry.terraform.io/providers/gavinbunney/kubectl/latest/docs/resources/manifest) | resource |
-| [kubectl_manifest.efs_pvc](https://registry.terraform.io/providers/gavinbunney/kubectl/latest/docs/resources/manifest) | resource |
-| [kubectl_manifest.efs_sc](https://registry.terraform.io/providers/gavinbunney/kubectl/latest/docs/resources/manifest) | resource |
-| [kubernetes_cluster_role.spark_role](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/cluster_role) | resource |
-| [kubernetes_cluster_role_binding.airflow_worker_spark_role_binding](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/cluster_role_binding) | resource |
-| [kubernetes_cluster_role_binding.spark_role_binding](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/cluster_role_binding) | resource |
-| [kubernetes_namespace_v1.airflow](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace_v1) | resource |
-| [kubernetes_namespace_v1.spark_team_a](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace_v1) | resource |
-| [kubernetes_secret_v1.airflow_scheduler](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/secret_v1) | resource |
-| [kubernetes_secret_v1.airflow_webserver](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/secret_v1) | resource |
-| [kubernetes_secret_v1.airflow_worker](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/secret_v1) | resource |
-| [kubernetes_secret_v1.spark_team_a](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/secret_v1) | resource |
-| [kubernetes_service_account_v1.airflow_scheduler](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/service_account_v1) | resource |
-| [kubernetes_service_account_v1.airflow_webserver](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/service_account_v1) | resource |
-| [kubernetes_service_account_v1.airflow_worker](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/service_account_v1) | resource |
-| [kubernetes_service_account_v1.spark_team_a](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/service_account_v1) | resource |
-| [random_id.airflow_webserver](https://registry.terraform.io/providers/hashicorp/random/3.5.1/docs/resources/id) | resource |
-| [random_password.grafana](https://registry.terraform.io/providers/hashicorp/random/3.5.1/docs/resources/password) | resource |
-| [random_password.postgres](https://registry.terraform.io/providers/hashicorp/random/3.5.1/docs/resources/password) | resource |
-| [aws_availability_zones.available](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/availability_zones) | data source |
-| [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
-| [aws_ecrpublic_authorization_token.token](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/ecrpublic_authorization_token) | data source |
-| [aws_eks_cluster_auth.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/eks_cluster_auth) | data source |
-| [aws_iam_policy_document.airflow_s3_logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
-| [aws_iam_policy_document.fluent_bit](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
-| [aws_iam_policy_document.grafana](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
-| [aws_iam_policy_document.spark_operator](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
-| [aws_partition.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/partition) | data source |
-| [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
-| [aws_secretsmanager_secret_version.admin_password_version](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/secretsmanager_secret_version) | data source |
+. Resource isolation: Every task runs in its own isolated pod, ensuring that failures in one task do not affect others. This provides a high degree of reliability.
 
-## Inputs
+. Cost-effectiveness: Resources are only consumed when tasks are running, helping to minimize costs, especially for intermittent workloads.
 
-| Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
-| <a name="input_db_private_subnets"></a> [db\_private\_subnets](#input\_db\_private\_subnets) | Private Subnets CIDRs. 254 IPs per Subnet/AZ for Airflow DB. | `list(string)` | <pre>[<br/>  "10.0.20.0/26",<br/>  "10.0.21.0/26"<br/>]</pre> | no |
-| <a name="input_eks_cluster_version"></a> [eks\_cluster\_version](#input\_eks\_cluster\_version) | EKS Cluster version | `string` | `"1.29"` | no |
-| <a name="input_eks_data_plane_subnet_secondary_cidr"></a> [eks\_data\_plane\_subnet\_secondary\_cidr](#input\_eks\_data\_plane\_subnet\_secondary\_cidr) | Secondary CIDR blocks. 32766 IPs per Subnet per Subnet/AZ for EKS Node and Pods | `list(string)` | <pre>[<br/>  "100.64.0.0/17",<br/>  "100.64.128.0/17"<br/>]</pre> | no |
-| <a name="input_enable_airflow"></a> [enable\_airflow](#input\_enable\_airflow) | Enable Apache Airflow | `bool` | `true` | no |
-| <a name="input_enable_airflow_spark_example"></a> [enable\_airflow\_spark\_example](#input\_enable\_airflow\_spark\_example) | Enable Apache Airflow and Spark Operator example | `bool` | `false` | no |
-| <a name="input_enable_amazon_prometheus"></a> [enable\_amazon\_prometheus](#input\_enable\_amazon\_prometheus) | Enable AWS Managed Prometheus service | `bool` | `true` | no |
-| <a name="input_name"></a> [name](#input\_name) | Name of the VPC and EKS Cluster | `string` | `"self-managed-airflow"` | no |
-| <a name="input_private_subnets"></a> [private\_subnets](#input\_private\_subnets) | Private Subnets CIDRs. 254 IPs per Subnet/AZ for Private NAT + NLB + Airflow + EC2 Jumphost etc. | `list(string)` | <pre>[<br/>  "10.0.1.0/24",<br/>  "10.0.2.0/24"<br/>]</pre> | no |
-| <a name="input_public_subnets"></a> [public\_subnets](#input\_public\_subnets) | Public Subnets CIDRs. 62 IPs per Subnet/AZ | `list(string)` | <pre>[<br/>  "10.0.0.0/26",<br/>  "10.0.0.64/26"<br/>]</pre> | no |
-| <a name="input_region"></a> [region](#input\_region) | Region | `string` | `"us-west-2"` | no |
-| <a name="input_secondary_cidr_blocks"></a> [secondary\_cidr\_blocks](#input\_secondary\_cidr\_blocks) | Secondary CIDR blocks to be attached to VPC | `list(string)` | <pre>[<br/>  "100.64.0.0/16"<br/>]</pre> | no |
-| <a name="input_vpc_cidr"></a> [vpc\_cidr](#input\_vpc\_cidr) | VPC CIDR | `string` | `"10.0.0.0/16"` | no |
+. Native Kubernetes integration: Since we are using EKS, the Kubernetes Executor integrates natively, leveraging our existing Kubernetes infrastructure without requiring any additional overhead for orchestration.
 
-## Outputs
+The Kubernetes Executor provides a balance between scalability, cost, and isolation, making it the most suitable choice for our workload on Amazon EKS.
 
-| Name | Description |
-|------|-------------|
-| <a name="output_configure_kubectl"></a> [configure\_kubectl](#output\_configure\_kubectl) | Configure kubectl: make sure you're logged in with the correct AWS profile and run the following command to update your kubeconfig |
-| <a name="output_grafana_secret_name"></a> [grafana\_secret\_name](#output\_grafana\_secret\_name) | Grafana password secret name |
-| <a name="output_s3_bucket_id_airflow_logs"></a> [s3\_bucket\_id\_airflow\_logs](#output\_s3\_bucket\_id\_airflow\_logs) | Airflow logs S3 bucket ID |
-| <a name="output_s3_bucket_id_fluentbit_logs"></a> [s3\_bucket\_id\_fluentbit\_logs](#output\_s3\_bucket\_id\_fluentbit\_logs) | FluentBit logs S3 bucket ID |
-<!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
+
+### 2. Logs from Workers in the Airflow Console
+
+One of the essential requirements was to ensure that logs generated by worker pods (which handle individual tasks) should be visible directly in the Airflow console. This is critical for monitoring and debugging DAG executions.
+
+
+To meet this requirement, we have configured Airflow to use Amazon S3 as the remote storage backend for logs. Worker logs are automatically shipped to an S3 bucket, which is configured to be accessible via the Airflow web UI. This ensures that:
+
+. Logs are centralized in one location (S3), making them easier to manage and archive.
+
+. They can be accessed and reviewed through the Airflow UI, making it convenient for developers and operators to monitor task execution in real time.
+
+The S3 integration not only helps in log visibility but also scales with the increasing volume of logs generated by tasks.
+
+
+### 3. DAG Deployment Method: Git-Sync
+For deploying DAGs to the Airflow cluster, we decided to use the Git-Sync sidecar container approach. This method offers several advantages:
+
+
+. Version control: Since DAGs are stored in a Git repository, we can manage changes and versions efficiently. Any changes to the DAGs can be tracked, and previous versions can be restored easily.
+
+. Easy rollback capability: In case of errors or issues with new DAGs, it is easy to revert to a previous stable version, reducing downtime and troubleshooting complexity.
+
+. Familiar workflow for developers: Developers are already familiar with Git-based workflows, so adopting this approach minimizes the learning curve. They can continue using their existing Git workflows to create and update DAGs.
+
+. No need to rebuild containers: Unlike some other methods, Git-Sync doesn't require rebuilding the Airflow image when DAGs change. This results in faster updates and more flexibility in managing DAGs.
+
+. Automated synchronization: Git-Sync runs as a sidecar container, continuously syncing the DAGs from the repository to the Airflow pods. This ensures that the latest DAGs are always available in the cluster without manual intervention.
+
+We chose this approach due to its simplicity, flexibility, and alignment with modern DevOps practices. By using Git-Sync, we ensure that DAG deployment is streamlined, versioned, and reliable.
+
+
+### Deploying the Solution
+
+Clone the repository
+
+```
+ git clone https://github.com/armevo4/opsfleet-task.git
+
+
+```
+
+Navigate into self-managed-airflow directory and run install.sh script
+
+```
+cd airplow-task/self-managed-airflow
+chmod +x install.sh
+./install.sh
+```
+
+
+### Verify the resources
+#### Create kubectl config
+Update the placeholder for AWS region and run the below command.
+
+```
+mv ~/.kube/config ~/.kube/config.bk
+aws eks update-kubeconfig --region <region>  --name self-managed-airflow
+```
+
+### Describe the EKS Cluster
+
+```
+aws eks describe-cluster --name self-managed-airflow
+
+
+```
+
+### Verify the EFS PV and PVC created by this deployment
+
+```
+kubectl get pvc -n airflow
+
+NAME           STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+airflow-dags   Bound    pvc-157cc724-06d7-4171-a14d-something   10Gi       RWX            efs-sc         73m
+
+kubectl get pv -n airflow
+NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                          STORAGECLASS   REASON   AGE
+pvc-157cc724-06d7-4171-a14d-something   10Gi       RWX            Delete           Bound    airflow/airflow-dags           efs-sc                  74m
+
+```
+
+### Verify the EFS Filesystem
+
+```
+aws efs describe-file-systems --query "FileSystems[*].FileSystemId" --output text
+```
+
+### Verify S3 bucket created for Airflow logs
+
+```
+aws s3 ls | grep airflow-logs-
+
+
+```
+
+### Verify the Airflow deployment
+
+```
+kubectl get deployment -n airflow
+
+NAME                READY   UP-TO-DATE   AVAILABLE   AGE
+airflow-pgbouncer   1/1     1            1           77m
+airflow-scheduler   2/2     2            2           77m
+airflow-statsd      1/1     1            1           77m
+airflow-triggerer   1/1     1            1           77m
+airflow-webserver   2/2     2            2           77m
+
+```
+
+### Fetch Postgres RDS password
+Amazon Postgres RDS database password can be fetched from the Secrets manager
+
+. Login to AWS console and open secrets manager
+. Click on postgres secret name
+. Click on Retrieve secret value button to verify the Postgres DB master password
+
+### Login to Airflow Web UI
+This deployment creates an Ingress object with public LoadBalancer(internal # Private Load Balancer can only be accessed within the VPC) for demo purpose For production workloads, you can modify airflow-values.yaml to choose internal LB. In addition, it's also recommended to use Route53 for Airflow domain and ACM for generating certificates to access Airflow on HTTPS port.
+
+Execute the following command to get the ALB DNS name
+
+```
+kubectl get ingress -n airflow
+
+NAME                      CLASS   HOSTS   ADDRESS                                                                PORTS   AGE
+airflow-airflow-ingress   alb     *       k8s-dataengineering-c92bfeb177-randomnumber.us-west-2.elb.amazonaws.com   80      88m
+
+```
+
+The above ALB URL will be different for you deployment. So use your URL and open it in a browser
+
+By default, Airflow creates a default user with admin and password as admin
+
+Login with Admin user and password and create new users for Admin and Viewer roles and delete the default admin user
+
+### Execute Sample Airflow Job
+. Login to Airflow WebUI
+
+. Click on DAGs link on the top of the page. This will show dags pre-created by the GitSync feature
+
+. Execute the hello_world_scheduled_dag DAG by clicking on Play button (>)
+
+. Verify the DAG execution from Graph link
+
+. All the Tasks will go green after few minutes
+
+. Click on one of the green Task which opens a popup with log link where you can verify the logs pointing to S3
+
+
+
+### How to Set Up Git-Sync:
+#### 1. Create a Git Repository for DAGs
+
+. Begin by creating a dedicated Git repository that will contain your DAG files. This repository will act as the source of truth for your DAGs.
+
+. Initialize a new Git repository (if one doesn’t already exist) and add your DAGs to the repository:
+
+```
+git init
+git add dags/  # assuming you have a dags/ directory
+git commit -m "Initial commit of DAGs"
+git remote add origin <your-git-repo-url>
+git push origin master
+
+```
+
+#### 2. Configure Git-Sync in Airflow
+
+. Modify the Airflow deployment to include a Git-Sync sidecar container in the airflow-webserver and airflow-scheduler pods. This container will clone and keep the DAGs synchronized from the Git repository to the local file system where Airflow can access them.
+
+. Update the Airflow Helm values file or Kubernetes manifests to include the following Git-Sync configuration.
+
+#### 3. Create Kubernetes Secret for Git Credentials
+
+. To securely provide Git credentials to Git-Sync, create a Kubernetes secret. This secret will store your Git username and password/token used for authentication.
+
+#### 4. Mount DAGs into Airflow
+
+. Ensure that the DAGs synchronized by Git-Sync are accessible by the Airflow webserver and scheduler. You need to mount the same volume in the Airflow containers where the DAGs will be stored. In your Airflow deployment file, update the volume mounts.
+
+#### 5. Test DAG Synchronization
+
+. Once the Git-Sync sidecar is up and running, any changes you push to the Git repository should automatically appear in the /opt/airflow/dags directory within your Airflow pods.
+
+. You can verify that the DAGs are synchronized by checking the contents of the dags directory inside the Airflow container.
+
+```
+kubectl exec -n airflow <airflow-webserver-pod> -- ls /opt/airflow/dags
+
+```
+
+. To test the workflow:
+
+    . Push a new DAG to the Git repository.
+
+    . Wait for Git-Sync to pull the new changes (within the configured polling interval).
+
+    . Confirm the new DAG is listed in the Airflow UI.
+
+#### 6. Monitor DAG Updates
+
+. Git-Sync will continuously check for changes in the repository (based on the polling interval). Whenever a new commit is pushed to the main branch of your DAG repository, Git-Sync will fetch the updates, and Airflow will automatically detect the new DAGs.
+
+
+. You can also monitor the Git-Sync logs to ensure synchronization is working correctly:
+
+```
+kubectl logs <airflow-webserver-pod> -c git-sync
+
+```
+
